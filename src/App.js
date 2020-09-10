@@ -9,7 +9,11 @@ const specialTags = {};
 const functions = {
   name: async (payload) => {
     if (specialTags.hasOwnProperty(payload)) {
-      return specialTags.payload.name;
+      if (Date.now() - 15 * 60 > specialTags.date) {
+        // simple cache invalidation, don't return -> refetch if 15 minutes
+        // have passed
+        return specialTags.payload.name;
+      }
     }
 
     const currencies = await fetch(
@@ -20,14 +24,10 @@ const functions = {
       (currency) => currency.symbol === payload
     )[0];
 
-    specialTags.payload = { name: searchedCurrency.name };
+    specialTags.payload = { name: searchedCurrency.name, date: new Date() };
 
-    return specialTags.payload.name;
+    return specialTags[payload.name];
   },
-};
-
-const replacer = (match, p1, p2, p3, offset, string) => {
-  return 'swapped';
 };
 
 function App() {
@@ -46,7 +46,13 @@ function App() {
             .toLowerCase();
           const argument = functionWithArgument.split('/')[1];
 
-          setText(text.replace(regexForTags, replacer));
+          if (functions.hasOwnProperty(apiFunctionName)) {
+            setText(
+              text.replace(regexForTags, () => {
+                functions[apiFunctionName](argument);
+              })
+            );
+          }
         }
       }
     }
